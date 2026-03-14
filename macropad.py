@@ -168,8 +168,7 @@ class MacroPadApp:
         self._start_keyboard()
         self._start_tray()
         self.root.mainloop()
-        self.root.update_idletasks()
-        self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
+
 
     def _idx(self):
         return self.cfg["current_layer"]
@@ -187,7 +186,7 @@ class MacroPadApp:
 
     def _build_window(self):
         self.root = tk.Tk()
-        self.root.title("MacroPad Pro")
+        self.root.title("CH552-Macropad-Configurator")
         self.root.geometry("")
         self.root.minsize(900, 600)
         self.root.configure(bg=C_BG)
@@ -591,24 +590,50 @@ class MacroPadApp:
 
         threading.Thread(target=_run, daemon=True).start()
 
+    def _show_window(self):
+        self.root.after(0, self.root.deiconify)
+        self.root.after(0, self.root.lift)
+        self.root.after(0, self.root.focus_force)
+
+
+    # pystray on Windows has no real double click event, it just fires the
+    # default menu item on every single click. worked around it with a timer:
+    # track the last click time, and if a second click comes in under 500ms,
+    # treat it as a double click. the invisible default MenuItem below is what
+    # catches every click without showing up in the right click menu.
+
     def _start_tray(self):
+        import time
+        self._tray_last_click = 0
+        DOUBLE_CLICK_MS = 500
+ 
+        def _on_tray_click(icon, item):
+            now = time.time() * 1000
+            delta = now - self._tray_last_click
+            if delta < DOUBLE_CLICK_MS:
+                self._tray_last_click = 0
+                self._show_window()
+            else:
+                self._tray_last_click = now
+ 
         img  = _make_tray_img(self._layer().get("color", "#4f9eff"))
         menu = pystray.Menu(
-            pystray.MenuItem("Show", lambda: self.root.after(0, self.root.deiconify)),
-            pystray.MenuItem("Quit", lambda: self.root.after(0, self._quit)),
+            pystray.MenuItem("Show", lambda icon, item: self._show_window()),
+            pystray.MenuItem("Quit", lambda icon, item: self.root.after(0, self._quit)),
+            pystray.MenuItem("", _on_tray_click, default=True, visible=False),
         )
-        self.tray = pystray.Icon("MacroPad", img, "MacroPad Pro", menu)
+        self.tray = pystray.Icon("CH552-Macropad-Configurator", img,"CH552-Macropad-Configurator", menu)
         threading.Thread(target=self.tray.run, daemon=True).start()
-
+ 
     def _update_tray(self, color, name):
         if not self.tray:
             return
         try:
             self.tray.icon  = _make_tray_img(color)
-            self.tray.title = f"MacroPad: {name}"
+            self.tray.title = f"CH552-Macropad: {name}"
         except Exception:
             pass
-
-
+ 
+ 
 if __name__ == "__main__":
     MacroPadApp()
